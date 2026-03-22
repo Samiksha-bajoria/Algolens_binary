@@ -19,7 +19,7 @@ const ModeToggle = ({ isProMode, onToggle }: ModeToggleProps) => {
         />
       </div>
       <span className={`text-[10px] font-mono font-semibold tracking-wider ${isProMode ? 'text-neon-purple neon-text-purple' : 'text-muted-foreground'}`}>
-        {isProMode ? 'PRO' : 'BEGINNER'}
+        {isProMode ? 'DEVELOPER' : 'BEGINNER'}
       </span>
     </button>
   );
