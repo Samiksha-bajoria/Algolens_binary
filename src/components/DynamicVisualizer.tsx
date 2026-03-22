@@ -32,10 +32,14 @@ export default function DynamicVisualizer({ codeStr }: { codeStr?: string }) {
       const safeCode = codeStr.replace(/^\s*return\s+[a-zA-Z0-9_]+\s*;/gm, '');
       
       // Use explicit availablePresets dict mapping tracking module root correctly explicitly enabling TSX resolution
-      const babelInstance: any = (BabelObj as any).default || BabelObj;
+      const babelInstance: any = BabelObj;
       const transpiled = babelInstance.transform(safeCode, { 
         filename: 'dynamic.tsx',
-        presets: ['react', 'typescript'] 
+        presets: [
+          babelInstance.availablePresets["react"],
+          babelInstance.availablePresets["typescript"]
+        ],
+        sourceType: "module"
       }).code;
 
       const createComponent = new Function(
@@ -51,7 +55,11 @@ export default function DynamicVisualizer({ codeStr }: { codeStr?: string }) {
           for (const key of keys) {
             if (typeof this[key] === 'function') return this[key];
           }
-          return () => <div className="text-amber-500 font-mono">Unrecognized Component Export Format</div>;
+          return () => React.createElement(
+            "div",
+            { className: "text-amber-500 font-mono" },
+            "Unrecognized Component Export Format"
+          );
         `
       );
 

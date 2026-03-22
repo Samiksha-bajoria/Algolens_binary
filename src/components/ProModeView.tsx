@@ -46,6 +46,14 @@ const ProModeView = () => {
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string>('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [cooldown, setCooldown] = useState(0);
+
+  // Cooldown effect
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
@@ -67,19 +75,33 @@ const ProModeView = () => {
       setHasData(true);
     } catch (e: any) {
       setErrorStatus(e.message || 'Unknown error occurred.');
+      if (e.message?.includes('Quota')) {
+        setCooldown(20);
+      }
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   useEffect(() => {
-    if (!selectedFile || selectedFile.type === 'folder') return;
-    setIsLoadingSummary(true);
-    fetchFileSummary(repoUrl, selectedFile.id)
-      .then(result => setFileSummary(result))
-      .catch((e) => setFileSummary({ summary: 'Error generating summary.' }))
-      .finally(() => setIsLoadingSummary(false));
-  }, [selectedFile, repoUrl]);
+    if (!selectedFile || selectedFile.type === 'folder' || cooldown > 0) return;
+    
+    // 2s Debounce to prevent rapid clicks from hitting minute-limits
+    const timer = setTimeout(() => {
+      setIsLoadingSummary(true);
+      setErrorStatus('');
+      fetchFileSummary(repoUrl, selectedFile.id)
+        .then(result => setFileSummary(result))
+        .catch((e) => {
+          setErrorStatus(e.message);
+          if (e.message?.includes('Quota')) setCooldown(20);
+          setFileSummary({ summary: 'Error generating summary.' });
+        })
+        .finally(() => setIsLoadingSummary(false));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [selectedFile, repoUrl, cooldown]);
 
   const toggleFolder = (id: string) => {
     const next = new Set(expandedFolders);
@@ -146,7 +168,7 @@ const ProModeView = () => {
           </div>
           <button
             onClick={handleAnalyze}
-            disabled={isAnalyzing || !repoUrl}
+            disabled={isAnalyzing || !repoUrl || cooldown > 0}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-neon-purple/20 border border-neon-purple/40 text-neon-purple text-sm font-mono font-semibold hover:bg-neon-purple/30 transition-all disabled:opacity-50"
           >
             {isAnalyzing ? (
@@ -156,7 +178,7 @@ const ProModeView = () => {
             ) : (
               <Workflow size={16} />
             )}
-            {isAnalyzing ? 'Analyzing...' : 'Analyze Architecture'}
+            {cooldown > 0 ? `Cooldown (${cooldown}s)` : (isAnalyzing ? 'Analyzing...' : 'Analyze Architecture')}
           </button>
         </div>
         {isAnalyzing && (

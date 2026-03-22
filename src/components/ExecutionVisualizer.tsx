@@ -56,7 +56,7 @@ const ArrayVisualization = ({
   currentStepData: ExecutionStep;
   algorithmType: string;
 }) => {
-  const maxVal = Math.max(...arrayData.map(v => Number(v) || 0), 1);
+  const maxVal = Math.max(...(arrayData || [1]).map(v => Number(v) || 1), 1);
   const highlighted = currentStepData.highlightedIndices || [];
   const roleMap = new Map(highlighted.map(h => [h.index, h.role]));
 
@@ -67,15 +67,15 @@ const ArrayVisualization = ({
           {arrayData.map((valRaw, i) => {
             const val = Math.round(Number(valRaw)) || 0;
             const role = roleMap.get(i);
-            const isInActive = currentStepData.activeElements.includes(i);
+            const isInActive = currentStepData.activeElements?.includes(i) ?? false;
             const height = Math.max((val / maxVal) * 100, 8) || 8;
             const colors = role ? roleColors[role] : null;
 
             return (
               <motion.div
-                key={`${i}-${valRaw}`}
+                key={i}
                 layout
-                layoutId={`${i}-${valRaw}`}
+                layoutId={`bar-${i}`}
                 className={`flex flex-col items-center gap-1 ${
                   algorithmType === 'merge-sort' && currentStepData.phase === 'branch' && i === Math.floor(arrayData.length / 2) ? 'ml-8' : ''
                 }`}

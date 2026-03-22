@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform, Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Code2, Terminal, ChevronRight, Cpu, Layers } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const FADE_DOWN_ANIMATION_VARIANTS: Variants = {
   hidden: { opacity: 0, y: -10 },
@@ -16,6 +16,107 @@ const STAGGER_CHILDREN_ANIMATION: Variants = {
   },
 };
 
+function MouseParticles() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let particles: Particle[] = [];
+    const particleCount = 80;
+    const connectionDistance = 150;
+    const mouseRadius = 150;
+
+    class Particle {
+      x: number; y: number; vx: number; vy: number; size: number;
+      constructor(w: number, h: number) {
+        this.x = Math.random() * w;
+        this.y = Math.random() * h;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.size = Math.random() * 2 + 1;
+      }
+      update(w: number, h: number) {
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.x < 0 || this.x > w) this.vx *= -1;
+        if (this.y < 0 || this.y > h) this.vy *= -1;
+        
+        // Mouse interaction
+        const dx = mouseRef.current.x - this.x;
+        const dy = mouseRef.current.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < mouseRadius) {
+          const force = (mouseRadius - dist) / mouseRadius;
+          this.x -= dx * force * 0.02;
+          this.y -= dy * force * 0.02;
+        }
+      }
+      draw() {
+        if (!ctx) return;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(167, 139, 250, 0.6)';
+        ctx.fill();
+      }
+    }
+
+    const init = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      particles = Array.from({ length: particleCount }, () => new Particle(canvas.width, canvas.height));
+    };
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update(canvas.width, canvas.height);
+        p.draw();
+      });
+
+      // Draw lines
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < connectionDistance) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(167, 139, 250, ${(1 - dist / connectionDistance) * 0.8})`;
+            ctx.lineWidth = 0.8;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    window.addEventListener('resize', init);
+    window.addEventListener('mousemove', handleMouseMove);
+    init();
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', init);
+      window.removeEventListener('mousemove', handleMouseMove);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-10 opacity-80" />;
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,15 +130,15 @@ export default function Home() {
 
   return (
     <div ref={containerRef} className="relative min-h-[200vh] bg-[#0A0A0F] text-white selection:bg-purple-500/30 overflow-hidden font-sans">
-      
+      <MouseParticles />
       {/* Dynamic Background Mesh */}
       <motion.div 
         style={{ y: yBackground }}
-        className="fixed inset-0 z-0 pointer-events-none opacity-40 mix-blend-screen"
+        className="fixed inset-0 z-0 pointer-events-none opacity-60 mix-blend-screen"
       >
-        <div className="absolute top-0 w-full h-[800px] bg-gradient-to-b from-purple-900/40 via-blue-900/10 to-transparent" />
-        <div className="absolute -top-[300px] -left-[200px] w-[800px] h-[800px] rounded-full bg-blue-600/20 blur-[120px]" />
-        <div className="absolute top-[100px] right-[100px] w-[600px] h-[600px] rounded-full bg-purple-600/20 blur-[150px]" />
+        <div className="absolute top-0 w-full h-[800px] bg-gradient-to-b from-purple-800/50 via-blue-800/20 to-transparent" />
+        <div className="absolute -top-[300px] -left-[200px] w-[800px] h-[800px] rounded-full bg-blue-500/30 blur-[120px]" />
+        <div className="absolute top-[100px] right-[100px] w-[600px] h-[600px] rounded-full bg-purple-500/30 blur-[150px]" />
       </motion.div>
 
       {/* Hero Section */}

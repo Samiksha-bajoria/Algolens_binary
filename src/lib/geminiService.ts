@@ -1,4 +1,4 @@
-const GEMINI_API_KEY = 'AIzaSyA2tdreBy9gp7q4WimpkRxDLuIa2pc-wq4';
+const GEMINI_API_KEY = 'AIzaSyCas9o8VJ0a0NVSK3xHp-R8UJJnvmX7lp4';
 
 const repoTreeCache = new Map<string, any>();
 
@@ -44,34 +44,47 @@ export async function fetchGithubTree(repoUrl: string) {
 let cachedModelPath = '';
 
 async function getAvailableModel(): Promise<string> {
-  if (cachedModelPath) return cachedModelPath;
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  
-  const models = data.models
-    .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
-    .map((m: any) => m.name); // returns "models/gemini-1.5-flash", etc.
-    
-  // Explicitly avoid gemini-*.pro as they have strict 0 or 2 RPM limits on free tier, prioritizing the 15 RPM 'flash' variants
-  const validModels = models.filter((m: string) => !m.includes('pro'));
+  const cacheKey = 'gemini_model_path_cache';
+  const cached = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
+  if (cached) return cached;
 
-  // Prefer 2.5-flash, then 1.5-flash, then any flash, then whatever
-  const preferred = validModels.find((m: string) => m.includes('2.5-flash'))
-                 || validModels.find((m: string) => m.includes('1.5-flash')) 
-                 || validModels.find((m: string) => m.includes('flash'))
-                 || validModels[0] || 'models/gemini-1.5-flash';
-                 
-  if (!preferred) throw new Error("No valid generateContent models found for this API key.");
-  cachedModelPath = preferred; // output format: 'models/gemini-1.5-flash'
-  return preferred;
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    
+    const models = data.models
+      .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
+      .map((m: any) => m.name);
+      
+    const validModels = models.filter((m: string) => !m.includes('pro') && !m.includes('2.5-flash'));
+    const preferred = validModels.find((m: string) => m.includes('1.5-flash'))
+                   || validModels.find((m: string) => m.includes('1.5-flash-8b'))
+                   || validModels.find((m: string) => m.includes('2.0-flash'))
+                   || validModels.find((m: string) => m.includes('flash'))
+                   || validModels[0] || 'models/gemini-1.5-flash';
+                   
+    if (typeof window !== 'undefined') localStorage.setItem(cacheKey, preferred);
+    return preferred;
+  } catch (e) {
+    console.error("Discovery failed, falling back to 1.5-flash:", e);
+    return 'models/gemini-1.5-flash'; // Fallback
+  }
 }
 
 const architectureCache = new Map<string, any>();
 
+const architectureCacheKey = (treeData: any) => {
+  const meta = {t: treeData.tree?.length || 0, d: treeData.tree?.[0]?.path};
+  return `gemini_arch_${JSON.stringify(meta).substring(0, 50)}`;
+};
+
 export async function generateRepoArchitecture(treeData: any) {
-  const cacheKey = JSON.stringify({t: treeData.tree?.length || 0, d: treeData.tree?.[0]?.path}).substring(0, 50);
-  if (architectureCache.has(cacheKey)) return architectureCache.get(cacheKey);
+  const cacheKey = architectureCacheKey(treeData);
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
 
   const paths = treeData.tree
     .map((t: any) => t.path)
@@ -106,29 +119,36 @@ ${paths.slice(0, 200).join('\\n')}
   });
   
   const data = await res.json();
+  if (res.status === 429) throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
   if (data.error) throw new Error(data.error.message);
   
-  let text = data.candidates[0].content.parts[0].text;
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   
-  // Extract JSON payload safely
+  // Robust JSON extraction
   let jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("AI did not return a valid flowchart format.");
+  if (!jsonMatch) throw new Error("AI did not return a valid flowchart format. Try again.");
   
   try {
     let jsonContent = jsonMatch[0];
+    // Strip markdown code blocks if they were captured by the greedy regex
     jsonContent = jsonContent.replace(/^\s*\`\`\`json/m, '').replace(/\`\`\`\s*$/m, '');
     const parsed = JSON.parse(jsonContent);
-    architectureCache.set(cacheKey, parsed);
+    if (typeof window !== 'undefined') localStorage.setItem(cacheKey, JSON.stringify(parsed));
     return parsed;
   } catch (e) {
-    throw new Error("Failed to parse flowchart JSON from AI.");
+    console.error("Gemini Architecture Parse Failure:", e, text);
+    throw new Error("Failed to parse the AI architectural map. The Repo is likely too complex.");
   }
 }
 
-const summaryCache = new Map<string, any>();
+const summaryCacheKey = (url: string, path: string) => `geminisummary_${url}_${path}`;
+
 export async function fetchFileSummary(repoUrl: string, filePath: string) {
-  const cacheKey = `${repoUrl}::${filePath}`;
-  if (summaryCache.has(cacheKey)) return summaryCache.get(cacheKey);
+  const cacheKey = summaryCacheKey(repoUrl, filePath);
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
 
   const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
   if (!match) throw new Error("Invalid GitHub URL");
@@ -175,20 +195,38 @@ The 'flowchart' should act as a mini-architectural graphic of JUST the functions
   });
   
   const data = await res.json();
+  if (res.status === 429) throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
   if (data.error) throw new Error(data.error.message);
   
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  
+  // Robust JSON extraction
+  let jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    // If it's just raw text, provide a default object so the summary still renders
+    return { summary: text, flowchart: null };
+  }
+
   try {
-    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(jsonStr);
-    summaryCache.set(cacheKey, parsed);
+    let jsonContent = jsonMatch[0];
+    // Strip markdown code blocks if they were captured by the greedy regex
+    jsonContent = jsonContent.replace(/^\s*\`\`\`json/m, '').replace(/\`\`\`\s*$/m, '');
+    const parsed = JSON.parse(jsonContent);
+    if (typeof window !== 'undefined') localStorage.setItem(cacheKey, JSON.stringify(parsed));
     return parsed;
   } catch (e) {
+    console.error("Gemini Parse Failure:", e, text);
     return { summary: text, flowchart: null };
   }
 }
 
 export async function generateExecutionTrace(code: string, userArray?: number[]) {
+  const cacheKey = `geminitrace_${JSON.stringify({ c: code, a: userArray || [] }).substring(0, 50)}`;
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
+
   const prompt = `Analyze this isolated JavaScript function and simulate its execution step-by-step. 
 The input array is: [${userArray?.join(', ') || 'N/A'}]
 
@@ -204,7 +242,7 @@ Return a JSON object that strictly matches this interface. YOU MUST generate a v
       "action": "Brief summary",
       "phase": "init", 
       "activeElements": [0], 
-      "arrayState": [1, 2, 3],
+      "array": [1, 2, 3],
       "treeHighlight": [0, 1], // Indices of treeNodes active in this step
       "highlightedIndices": [{ "index": 0, "role": "comparing" }] // roles: comparing, swapping, found, low, high, mid
     }
@@ -234,6 +272,7 @@ ${code}
   });
 
   const data = await res.json();
+  if (res.status === 429) throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
   if (data.error) throw new Error(data.error.message);
   
   let text = data.candidates[0].content.parts[0].text;
@@ -255,7 +294,7 @@ ${code}
     whatIf: s.whatIf || 'The AI execution path reached this state based on the input structure.',
     treeHighlight: s.treeHighlight || [0],
     activeElements: s.activeElements || [],
-    arrayState: s.arrayState || userArray || [],
+    array: s.array || userArray || [],
     variables: s.variables || [],
     highlightedIndices: s.highlightedIndices || []
   }));
@@ -278,10 +317,17 @@ ${code}
   }));
     
   parsed.arrayData = userArray || [];
+  if (typeof window !== 'undefined') localStorage.setItem(cacheKey, JSON.stringify(parsed));
   return parsed;
 }
 
 export async function generateFramerAnimationCode(code: string, ast: string): Promise<string> {
+  const cacheKey = `geminiframer_${code.substring(0, 100)}_${ast.substring(0, 50)}`;
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return cached;
+  }
+
   const prompt = `You are a world-class React and Framer Motion developer building an Animated Code Visualizer.
 Given the following algorithm code and its Abstract Syntax Tree (AST), write a single React functional component that dynamically visually animates the execution of the code using framer-motion.
 
@@ -307,10 +353,14 @@ ${code}`;
     });
     
     const data = await res.json();
+    if (res.status === 429) throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
     if (data.error) throw new Error(data.error.message);
     
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return text.replace(/```(?:tsx|jsx|js|javascript)?/g, '').replace(/```/g, '').trim();
+    const cleaned = text.replace(/```(?:tsx|jsx|js|javascript)?/g, '').replace(/```/g, '').trim();
+    
+    if (typeof window !== 'undefined') localStorage.setItem(cacheKey, cleaned);
+    return cleaned;
   } catch (e) {
     console.error("Gemini Render Generator Error:", e);
     return "return () => <div className='text-red-500 font-mono'>API Exhausted. Please retry.</div>;";

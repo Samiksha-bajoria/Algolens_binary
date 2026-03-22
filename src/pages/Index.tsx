@@ -362,7 +362,7 @@ const Index = () => {
             <ExecutionVisualizer
               currentStepData={currentStepData}
               algorithmType={result?.algorithmType}
-              arrayData={currentStepData?.arrayState || result?.arrayData}
+              arrayData={currentStepData?.array || result?.arrayData}
               customFramerCode={result?.customFramerCode}
             />
           </div>

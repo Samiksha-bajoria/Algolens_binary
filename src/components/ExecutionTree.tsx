@@ -142,7 +142,7 @@ const ExecutionTree = ({ currentStepData, treeNodes, onJumpToStep, algorithmType
                   }
                   fontSize={10}
                 >
-                  {node.label}
+                  {algorithmType === 'heap-sort' && currentStepData.array ? currentStepData.array[node.id] : node.label}
                 </text>
               </g>
             );
