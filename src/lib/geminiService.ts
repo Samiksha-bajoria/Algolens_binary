@@ -34,9 +34,10 @@ async function throttleAI() {
 async function discoverModels(): Promise<string[]> {
   if (discoveredModels.length > 0) return discoveredModels;
 
-  // Try to load from localStorage first for speed
+  // Use the API key as part of the cache identifier
+  const cacheKey = `gemini_models_${GEMINI_API_KEY.slice(-8)}`;
   if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem('gemini_discovered_models');
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       discoveredModels = JSON.parse(cached);
       return discoveredModels;
@@ -61,14 +62,12 @@ async function discoverModels(): Promise<string[]> {
           console.log(`[Gemini] Discovered ${supported.length} models via ${v}:`, supported);
           discoveredModels = supported;
           if (typeof window !== 'undefined') {
-            localStorage.setItem('gemini_discovered_models', JSON.stringify(supported));
+            localStorage.setItem(cacheKey, JSON.stringify(supported));
           }
           return supported;
         }
       }
-    } catch (e) {
-      console.warn(`[Gemini] Model discovery failed for ${v}:`, e);
-    }
+    } catch (e) { /* silent */ }
   }
 
   return [];
