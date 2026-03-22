@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchGithubTree, generateRepoArchitecture, fetchFileSummary } from '@/lib/geminiService';
-import { Github, Play, FileCode, Workflow, ChevronRight, ChevronDown, Activity, Terminal } from 'lucide-react';
+import { Github, Play, FileCode, Workflow, ChevronRight, ChevronDown, Activity, Terminal, Sparkles } from 'lucide-react';
 
 interface RepoNode {
   id: string;
@@ -83,25 +83,35 @@ const ProModeView = () => {
     }
   };
 
-  useEffect(() => {
+  const handleFetchSummary = async () => {
     if (!selectedFile || selectedFile.type === 'folder' || cooldown > 0) return;
-    
-    // 2s Debounce to prevent rapid clicks from hitting minute-limits
-    const timer = setTimeout(() => {
-      setIsLoadingSummary(true);
-      setErrorStatus('');
-      fetchFileSummary(repoUrl, selectedFile.id)
-        .then(result => setFileSummary(result))
-        .catch((e) => {
-          setErrorStatus(e.message);
-          if (e.message?.includes('Quota')) setCooldown(20);
-          setFileSummary({ summary: 'Error generating summary.' });
-        })
-        .finally(() => setIsLoadingSummary(false));
-    }, 1000);
+    setIsLoadingSummary(true);
+    setErrorStatus('');
+    try {
+      const result = await fetchFileSummary(repoUrl, selectedFile.id);
+      setFileSummary(result);
+    } catch (e: any) {
+      setErrorStatus(e.message);
+      if (e.message?.includes('Quota')) setCooldown(20);
+      setFileSummary({ summary: 'Error generating summary.' });
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  };
 
-    return () => clearTimeout(timer);
-  }, [selectedFile, repoUrl, cooldown]);
+  useEffect(() => {
+    // Clear summary when selection changes so UI is clean
+    if (selectedFile?.type === 'file') {
+       // Optional: Auto-fetch ONLY if it's already in localStorage cache
+       const cacheKey = `geminisummary_${repoUrl}_${selectedFile.id}`;
+       const cached = localStorage.getItem(cacheKey);
+       if (cached) {
+         setFileSummary(JSON.parse(cached));
+       } else {
+         setFileSummary(null);
+       }
+    }
+  }, [selectedFile, repoUrl]);
 
   const toggleFolder = (id: string) => {
     const next = new Set(expandedFolders);
@@ -321,6 +331,18 @@ const ProModeView = () => {
                         <div className="w-4 h-4 rounded-full border border-primary border-t-transparent animate-spin" /> 
                         Analyzing raw code for {selectedFile.name}...
                       </div>
+                    ) : !fileSummary ? (
+                       <div className="flex flex-col items-center justify-center p-12 gap-4 border-2 border-dashed border-border/40 rounded-xl mt-4">
+                          <Sparkles className="text-primary/40" size={32} />
+                          <p className="text-xs font-mono text-muted-foreground max-w-xs text-center">AI Summary for {selectedFile.name} needs generation.</p>
+                          <button
+                            onClick={handleFetchSummary}
+                            disabled={cooldown > 0}
+                            className="px-4 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg text-xs font-mono font-bold text-primary transition-all disabled:opacity-50"
+                          >
+                            {cooldown > 0 ? `Cooldown (${cooldown}s)` : 'Analyze File with Gemini'}
+                          </button>
+                       </div>
                     ) : (
                       <div className="mt-4">
                         <div className="text-sm font-sans text-foreground/80 whitespace-pre-wrap leading-relaxed prose prose-invert max-w-none">

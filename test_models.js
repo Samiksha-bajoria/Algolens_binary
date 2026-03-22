@@ -1,4 +1,4 @@
-fetch("https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyCas9o8VJ0a0NVSK3xHp-R8UJJnvmX7lp4")
+fetch("https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyDK8obNGVsGKEkjIO0xHOow-LEd9V3XO7k")
   .then(r => r.json())
   .then(d => {
     if (d.error) {

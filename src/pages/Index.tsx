@@ -181,8 +181,16 @@ const Index = () => {
   const [speed, setSpeed] = useState(1);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [hasRun, setHasRun] = useState(true);
+  const [cooldown, setCooldown] = useState(0);
   const playRef = useRef(isPlaying);
   playRef.current = isPlaying;
+
+  // ── Cooldown Timer ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const steps = result.steps;
   const currentStepData = steps[Math.min(currentStep, steps.length - 1)];
@@ -200,6 +208,9 @@ const Index = () => {
       setTimeout(() => setToast(null), 3000);
     } catch (e: any) {
       const msg = e.message || 'Unknown execution trace error.';
+      if (msg.toLowerCase().includes('quota') || msg.includes('429')) {
+        setCooldown(30);
+      }
       setToast({ message: `Error: ${msg.substring(0, 100)}`, type: 'error' });
       setTimeout(() => setToast(null), 4000);
     } finally {
@@ -351,6 +362,8 @@ const Index = () => {
             isProMode={isProMode}
             onCodeChange={handleCodeChange}
             onRun={handleRun}
+            isCooldown={cooldown > 0}
+            cooldownTime={cooldown}
           />
         </div>
 

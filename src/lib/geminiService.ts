@@ -1,4 +1,4 @@
-const GEMINI_API_KEY = 'AIzaSyCas9o8VJ0a0NVSK3xHp-R8UJJnvmX7lp4';
+const BACKEND_URL = 'http://localhost:3001';
 
 const repoTreeCache = new Map<string, any>();
 
@@ -45,31 +45,13 @@ let cachedModelPath = '';
 
 async function getAvailableModel(): Promise<string> {
   const cacheKey = 'gemini_model_path_cache';
-  const cached = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
-  if (cached) return cached;
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    
-    const models = data.models
-      .filter((m: any) => m.supportedGenerationMethods.includes("generateContent"))
-      .map((m: any) => m.name);
-      
-    const validModels = models.filter((m: string) => !m.includes('pro') && !m.includes('2.5-flash'));
-    const preferred = validModels.find((m: string) => m.includes('1.5-flash'))
-                   || validModels.find((m: string) => m.includes('1.5-flash-8b'))
-                   || validModels.find((m: string) => m.includes('2.0-flash'))
-                   || validModels.find((m: string) => m.includes('flash'))
-                   || validModels[0] || 'models/gemini-1.5-flash';
-                   
-    if (typeof window !== 'undefined') localStorage.setItem(cacheKey, preferred);
-    return preferred;
-  } catch (e) {
-    console.error("Discovery failed, falling back to 1.5-flash:", e);
-    return 'models/gemini-1.5-flash'; // Fallback
+  // SUCCESS: Verification showed 'gemini-flash-latest' works for this account
+  const preferred = 'models/gemini-flash-latest';
+  
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(cacheKey, preferred);
   }
+  return preferred;
 }
 
 const architectureCache = new Map<string, any>();
@@ -109,7 +91,7 @@ ${paths.slice(0, 200).join('\\n')}
 `;
 
   const modelPath = await getAvailableModel();
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${GEMINI_API_KEY}`, {
+  const res = await fetch(`${BACKEND_URL}/api/gemini/${modelPath}/generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -188,7 +170,7 @@ Return EXACTLY a JSON file matching this schema:
 The 'flowchart' should act as a mini-architectural graphic of JUST the functions or logical steps inside this specific file! Do NOT wrap in generic markdown blocks, return ONLY parseable JSON.`;
 
   const modelPath = await getAvailableModel();
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${GEMINI_API_KEY}`, {
+  const res = await fetch(`${BACKEND_URL}/api/gemini/${modelPath}/generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -221,7 +203,9 @@ The 'flowchart' should act as a mini-architectural graphic of JUST the functions
 }
 
 export async function generateExecutionTrace(code: string, userArray?: number[]) {
-  const cacheKey = `geminitrace_${JSON.stringify({ c: code, a: userArray || [] }).substring(0, 50)}`;
+  const keyObj = { c: code, a: userArray || [] };
+  const cacheKey = `geminitrace_${JSON.stringify(keyObj)}`;
+  
   if (typeof window !== 'undefined') {
     const cached = localStorage.getItem(cacheKey);
     if (cached) return JSON.parse(cached);
@@ -262,7 +246,7 @@ ${code}
 \`\`\``;
 
   const modelPath = await getAvailableModel();
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${GEMINI_API_KEY}`, {
+  const res = await fetch(`${BACKEND_URL}/api/gemini/${modelPath}/generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -343,7 +327,7 @@ ${code}`;
 
   try {
     const modelPath = await getAvailableModel();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(`${BACKEND_URL}/api/gemini/${modelPath}/generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -353,16 +337,41 @@ ${code}`;
     });
     
     const data = await res.json();
-    if (res.status === 429) throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
-    if (data.error) throw new Error(data.error.message);
+    if (res.status === 429 || data.quotaExceeded) {
+      throw new Error("AI Quota Exceeded. Please wait 20s for the next request... (Free Tier limit: 15 requests per minute).");
+    }
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : data.error.message || 'AI Generation Failed');
     
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleaned = text.replace(/```(?:tsx|jsx|js|javascript)?/g, '').replace(/```/g, '').trim();
     
     if (typeof window !== 'undefined') localStorage.setItem(cacheKey, cleaned);
     return cleaned;
-  } catch (e) {
+  } catch (e: any) {
     console.error("Gemini Render Generator Error:", e);
-    return "return () => <div className='text-red-500 font-mono'>API Exhausted. Please retry.</div>;";
+    const isNetwork = e instanceof TypeError || e.message?.includes('fetch') || e.message?.includes('Network');
+    const msg = isNetwork 
+      ? "Backend Server Offline. Please run 'npm run dev:all' to start the backend." 
+      : (e.message || "API Quota Exhausted. (Try again in 20s)");
+    const safeMsg = JSON.stringify(msg);
+    
+    return `const Visualizer = () => {
+      const msg = ${safeMsg};
+      return (
+        <div className='flex flex-col items-center justify-center p-8 border-2 border-dashed border-red-500/40 bg-red-500/5 rounded-2xl'>
+          <div className='w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center mb-3'>
+            <svg className='text-red-500 w-5 h-5' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2'><circle cx='12' cy='12' r='10'/><line x1='12' y1='8' x2='12' y2='12'/><line x1='12' y1='16' x2='12.01' y2='16'/></svg>
+          </div>
+          <p className='text-xs font-mono text-red-400 font-bold mb-1 uppercase tracking-widest'>Error Detected</p>
+          <p className='text-[13px] text-foreground/80 font-sans text-center max-w-sm'>{msg}</p>
+        <button 
+           onClick={() => window.location.reload()} 
+           className='mt-4 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 rounded text-[11px] font-mono text-white transition-all'
+        >
+           Retry Refresh
+        </button>
+      </div>
+    );
+    };`;
   }
 }

@@ -9,6 +9,8 @@ interface CodeEditorProps {
   isProMode: boolean;
   onCodeChange: (code: string) => void;
   onRun: () => void;
+  isCooldown?: boolean;
+  cooldownTime?: number;
 }
 
 const KEYWORDS = ['function', 'let', 'const', 'var', 'return', 'if', 'else', 'while', 'for', 'of', 'in', 'new', 'this', 'true', 'false', 'null', 'undefined', 'break', 'continue'];
@@ -35,7 +37,7 @@ function highlightLine(code: string): string {
   return result;
 }
 
-const CodeEditor = ({ code, activeLine, isProMode, onCodeChange, onRun }: CodeEditorProps) => {
+const CodeEditor = ({ code, activeLine, isProMode, onCodeChange, onRun, isCooldown, cooldownTime }: CodeEditorProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const [cursorLine, setCursorLine] = useState(1);
@@ -222,12 +224,17 @@ const CodeEditor = ({ code, activeLine, isProMode, onCodeChange, onRun }: CodeEd
         </span>
         <motion.button
           onClick={onRun}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/40 text-primary text-[11px] font-mono font-semibold hover:bg-primary/30 transition-all"
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          disabled={isCooldown}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-mono font-semibold transition-all ${
+            isCooldown 
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 opacity-60 cursor-not-allowed' 
+              : 'bg-primary/20 border-primary/40 text-primary hover:bg-primary/30'
+          }`}
+          whileHover={isCooldown ? {} : { scale: 1.03 }}
+          whileTap={isCooldown ? {} : { scale: 0.97 }}
         >
-          <Play size={11} className="fill-current" />
-          Run & Visualize
+          <Play size={11} className={isCooldown ? "" : "fill-current"} />
+          {isCooldown ? `Cooldown (${cooldownTime}s)` : 'Run & Visualize'}
         </motion.button>
       </div>
     </div>

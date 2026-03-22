@@ -717,6 +717,16 @@ function interpretGeneric(code: string): InterpreterResult {
 
 // ─── AI Dynamic Sandbox Interpreter (Code → Component) ────────────────────────
 async function interpretAIAnimation(code: string): Promise<InterpreterResult> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode || trimmedCode === '// Write your own custom logic here...' || trimmedCode.length < 5) {
+     return {
+       steps: [{ step: 1, line: 1, variables: [], explanation: 'Ready to build your execution trace...', whatIf: 'Type some code to see a custom animation!', activeElements: [], treeHighlight: [0], action: 'Wait for Input', phase: 'done' }],
+       treeNodes: [{ id: 0, label: 'Empty Sandbox', x: 340, y: 20, children: [] }],
+       algorithmType: 'generic',
+       customFramerCode: "const Visualizer = () => <div className='flex items-center justify-center h-full text-white/40 font-mono tracking-widest uppercase animate-pulse'>Initialize Execution Vector...</div>;"
+     };
+  }
+
   const customFramerCode = await generateFramerAnimationCode(code, "AST Generated On Backend");
 
   const steps: ExecutionStep[] = [{
