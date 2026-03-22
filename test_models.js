@@ -1,4 +1,4 @@
-fetch("https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyDK8obNGVsGKEkjIO0xHOow-LEd9V3XO7k")
+fetch("https://generativelanguage.googleapis.com/v1beta/models?key=GEMINI_API_KEY")
   .then(r => r.json())
   .then(d => {
     if (d.error) {
