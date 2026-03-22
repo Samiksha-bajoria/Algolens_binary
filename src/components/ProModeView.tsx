@@ -38,7 +38,7 @@ const ProModeView = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [hasData, setHasData] = useState(false);
   const [selectedFile, setSelectedFile] = useState<RepoNode | null>(null);
-  
+
   // Real data state
   const [repoTree, setRepoTree] = useState<RepoNode[]>([]);
   const [architecture, setArchitecture] = useState<any>(null);
@@ -61,7 +61,7 @@ const ProModeView = () => {
     setSelectedFile(null);
     setErrorStatus('');
     setExpandedFolders(new Set());
-    
+
     try {
       // 1. Fetch Github Tree
       const treeRes = await fetchGithubTree(repoUrl);
@@ -71,12 +71,12 @@ const ProModeView = () => {
       // 2. Generate Gemini Flowchart
       const arch = await generateRepoArchitecture(treeRes);
       setArchitecture(arch);
-      
+
       setHasData(true);
     } catch (e: any) {
       setErrorStatus(e.message || 'Unknown error occurred.');
       if (e.message?.includes('Quota')) {
-        setCooldown(20);
+        setCooldown(30);
       }
     } finally {
       setIsAnalyzing(false);
@@ -92,7 +92,7 @@ const ProModeView = () => {
       setFileSummary(result);
     } catch (e: any) {
       setErrorStatus(e.message);
-      if (e.message?.includes('Quota')) setCooldown(20);
+      if (e.message?.includes('Quota')) setCooldown(30);
       setFileSummary({ summary: 'Error generating summary.' });
     } finally {
       setIsLoadingSummary(false);
@@ -102,14 +102,14 @@ const ProModeView = () => {
   useEffect(() => {
     // Clear summary when selection changes so UI is clean
     if (selectedFile?.type === 'file') {
-       // Optional: Auto-fetch ONLY if it's already in localStorage cache
-       const cacheKey = `geminisummary_${repoUrl}_${selectedFile.id}`;
-       const cached = localStorage.getItem(cacheKey);
-       if (cached) {
-         setFileSummary(JSON.parse(cached));
-       } else {
-         setFileSummary(null);
-       }
+      // Optional: Auto-fetch ONLY if it's already in localStorage cache
+      const cacheKey = `geminisummary_${repoUrl}_${selectedFile.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        setFileSummary(JSON.parse(cached));
+      } else {
+        setFileSummary(null);
+      }
     }
   }, [selectedFile, repoUrl]);
 
@@ -127,9 +127,8 @@ const ProModeView = () => {
         <div key={node.id} className="flex flex-col relative">
           <button
             onClick={() => node.type === 'folder' ? toggleFolder(node.id) : setSelectedFile(node)}
-            className={`flex items-center gap-1.5 py-1 px-2 text-[11px] font-mono rounded hover:bg-primary/10 transition-colors ${
-              selectedFile?.id === node.id ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'text-muted-foreground'
-            } ${node.type === 'folder' ? 'font-bold text-foreground/90 mt-1' : ''}`}
+            className={`flex items-center gap-1.5 py-1 px-2 text-[11px] font-mono rounded hover:bg-primary/10 transition-colors ${selectedFile?.id === node.id ? 'bg-primary/20 text-primary border-l-2 border-primary' : 'text-muted-foreground'
+              } ${node.type === 'folder' ? 'font-bold text-foreground/90 mt-1' : ''}`}
             style={{ paddingLeft: `${depth * 10 + 8}px` }}
           >
             {node.type === 'folder' ? (
@@ -139,7 +138,7 @@ const ProModeView = () => {
             )}
             <span className="truncate">{node.name}</span>
           </button>
-          
+
           <AnimatePresence>
             {node.children && isExpanded && (
               <motion.div
@@ -213,7 +212,7 @@ const ProModeView = () => {
               exit={{ opacity: 0 }}
               className="flex-1 flex flex-col items-center justify-center text-muted-foreground/40"
             >
-              
+
               <Workflow size={48} className="mb-4 opacity-20" />
               <p className="text-sm font-mono text-center max-w-sm">
                 Enter a repository URL to generate a dynamic architecture flowchart and code summaries using AI.
@@ -275,7 +274,7 @@ const ProModeView = () => {
                   <Terminal size={14} className="text-primary" />
                   {selectedFile ? `Analyzing: ${selectedFile.name}` : 'Global Architecture Flow'}
                 </h2>
-                
+
                 <div className={`transition-all duration-500 ease-in-out w-full flex items-center justify-center relative ${selectedFile ? 'h-[250px] opacity-60 scale-95 overflow-hidden' : 'flex-1 p-8'}`}>
                   {/* Dynamic AI Flowchart */}
                   <div className="flex flex-wrap items-center justify-center gap-12 max-w-3xl transform origin-top">
@@ -287,13 +286,13 @@ const ProModeView = () => {
                         amber: 'border-amber-500/40 bg-amber-500/10 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]',
                       };
                       const cCls = colors[mod.color] || colors.blue;
-                      
+
                       // Find edges targeting this module
                       const dependencies = architecture?.edges
                         ?.filter((e: any) => e.target === mod.id)
                         ?.map((e: any) => architecture.modules.find((m: any) => m.id === e.source)?.name)
                         .filter(Boolean) || [];
-                      
+
                       return (
                         <div key={mod.id} className="relative flex flex-col items-center">
                           {dependencies.length > 0 && (
@@ -328,27 +327,27 @@ const ProModeView = () => {
                     <div className="absolute top-4 right-4 text-[10px] px-2 py-1 rounded-full border border-primary/30 text-primary font-mono bg-primary/10">Gemini Summary</div>
                     {isLoadingSummary ? (
                       <div className="flex items-center gap-2 mt-4 text-sm font-mono text-muted-foreground">
-                        <div className="w-4 h-4 rounded-full border border-primary border-t-transparent animate-spin" /> 
+                        <div className="w-4 h-4 rounded-full border border-primary border-t-transparent animate-spin" />
                         Analyzing raw code for {selectedFile.name}...
                       </div>
                     ) : !fileSummary ? (
-                       <div className="flex flex-col items-center justify-center p-12 gap-4 border-2 border-dashed border-border/40 rounded-xl mt-4">
-                          <Sparkles className="text-primary/40" size={32} />
-                          <p className="text-xs font-mono text-muted-foreground max-w-xs text-center">AI Summary for {selectedFile.name} needs generation.</p>
-                          <button
-                            onClick={handleFetchSummary}
-                            disabled={cooldown > 0}
-                            className="px-4 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg text-xs font-mono font-bold text-primary transition-all disabled:opacity-50"
-                          >
-                            {cooldown > 0 ? `Cooldown (${cooldown}s)` : 'Analyze File with Gemini'}
-                          </button>
-                       </div>
+                      <div className="flex flex-col items-center justify-center p-12 gap-4 border-2 border-dashed border-border/40 rounded-xl mt-4">
+                        <Sparkles className="text-primary/40" size={32} />
+                        <p className="text-xs font-mono text-muted-foreground max-w-xs text-center">AI Summary for {selectedFile.name} needs generation.</p>
+                        <button
+                          onClick={handleFetchSummary}
+                          disabled={cooldown > 0}
+                          className="px-4 py-2 bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg text-xs font-mono font-bold text-primary transition-all disabled:opacity-50"
+                        >
+                          {cooldown > 0 ? `Cooldown (${cooldown}s)` : 'Analyze File with Gemini'}
+                        </button>
+                      </div>
                     ) : (
                       <div className="mt-4">
                         <div className="text-sm font-sans text-foreground/80 whitespace-pre-wrap leading-relaxed prose prose-invert max-w-none">
                           {fileSummary?.summary || 'No summary generated.'}
                         </div>
-                        
+
                         {/* Mini Flowchart below summary */}
                         {fileSummary?.flowchart && fileSummary.flowchart.modules && (
                           <div className="mt-8 border-t border-border/20 pt-8">
@@ -362,12 +361,12 @@ const ProModeView = () => {
                                   amber: 'border-amber-500/40 bg-amber-500/10 text-amber-500',
                                 };
                                 const cCls = colors[mod.color] || colors.blue;
-                                
+
                                 const dependencies = fileSummary.flowchart.edges
                                   ?.filter((e: any) => e.target === mod.id)
                                   ?.map((e: any) => fileSummary.flowchart.modules.find((m: any) => m.id === e.source)?.name)
                                   .filter(Boolean) || [];
-                                  
+
                                 return (
                                   <div key={mod.id} className="relative flex flex-col items-center">
                                     {dependencies.length > 0 && (

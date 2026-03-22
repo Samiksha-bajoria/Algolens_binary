@@ -354,33 +354,21 @@ const Index = () => {
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 p-4">
-        {/* Top: Code Editor (Wide) */}
-        <div className="h-[380px] border border-border/40 rounded-xl overflow-hidden flex flex-col shadow-sm">
-          <CodeEditor
-            code={code}
-            activeLine={currentStepData?.line ?? 1}
-            isProMode={isProMode}
-            onCodeChange={handleCodeChange}
-            onRun={handleRun}
-            isCooldown={cooldown > 0}
-            cooldownTime={cooldown}
-          />
-        </div>
-
-        {/* Bottom: Visualization + Tree + AI Insights */}
-        <div className="flex gap-4">
-          {/* Center: Visualization */}
-          <div className="flex-1 flex flex-col gap-4">
-          <div className={`${result?.algorithmType === 'generic' ? 'min-h-[696px]' : 'h-[300px]'} border border-border/40 rounded-xl shadow-sm overflow-hidden`}>
-            <ExecutionVisualizer
-              currentStepData={currentStepData}
-              algorithmType={result?.algorithmType}
-              arrayData={currentStepData?.array || result?.arrayData}
-              customFramerCode={result?.customFramerCode}
+        {/* Top Row: Code Editor + Execution Tree (Side-by-Side) */}
+        <div className="flex gap-4 h-[400px]">
+          <div className="flex-1 border border-border/40 rounded-xl overflow-hidden flex flex-col shadow-sm">
+            <CodeEditor
+              code={code}
+              activeLine={currentStepData?.line ?? 1}
+              isProMode={isProMode}
+              onCodeChange={handleCodeChange}
+              onRun={handleRun}
+              isCooldown={cooldown > 0}
+              cooldownTime={cooldown}
             />
           </div>
           {result?.algorithmType !== 'generic' && (
-            <div className="h-[380px] border border-border/40 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div className="w-[450px] border border-border/40 rounded-xl shadow-sm overflow-hidden flex flex-col">
               <ExecutionTree
                 currentStepData={currentStepData}
                 treeNodes={result.treeNodes}
@@ -391,16 +379,28 @@ const Index = () => {
           )}
         </div>
 
-        {/* Right: AI Insights */}
-        <div className="w-[340px] shrink-0 flex flex-col border border-border/40 rounded-xl shadow-sm overflow-hidden bg-card/10">
-          <ExplanationPanel
-            currentStepData={currentStepData}
-            totalSteps={steps.length}
-            algorithmType={result.algorithmType}
-            isProMode={isProMode}
-          />
+        {/* Bottom Row: Visualization + AI Insights */}
+        <div className="flex gap-4">
+          {/* Main Visualization */}
+          <div className="flex-1 min-h-[400px] border border-border/40 rounded-xl shadow-sm overflow-hidden bg-card/5">
+            <ExecutionVisualizer
+              currentStepData={currentStepData}
+              algorithmType={result?.algorithmType}
+              arrayData={currentStepData?.array || result?.arrayData}
+              customFramerCode={result?.customFramerCode}
+            />
+          </div>
+
+          {/* AI Insights Card */}
+          <div className="w-[340px] shrink-0 flex flex-col border border-border/40 rounded-xl shadow-sm overflow-hidden bg-card/10">
+            <ExplanationPanel
+              currentStepData={currentStepData}
+              totalSteps={steps.length}
+              algorithmType={result.algorithmType}
+              isProMode={isProMode}
+            />
+          </div>
         </div>
-      </div>
       </div>
 
       {/* ── Bottom: Variables ──────────────────────────────────────────────── */}

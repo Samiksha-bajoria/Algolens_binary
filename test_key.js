@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 async function test() {
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   if (!key) {
     console.error("❌ No GEMINI_API_KEY found in .env");
     return;

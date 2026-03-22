@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 
 // Initializing the app
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3033;
 
 // Cache directory setup
 const CACHE_DIR = path.join(__dirname, '.cache');
@@ -96,9 +96,10 @@ app.get('/api/gemini/models', async (req, res) => {
   }
 });
 
-app.post('/api/gemini/:model/:action', async (req, res) => {
-  const { model: modelName, action } = req.params;
-  const { contents, generationConfig } = req.body;
+app.post('/api/gemini/:action', async (req, res) => {
+  const { action } = req.params;
+  const { model: modelInBody, contents, generationConfig } = req.body;
+  const modelName = modelInBody || 'gemini-1.5-flash';
 
   const cacheKey = JSON.stringify({ modelName, action, contents });
   const cached = getFromCache(cacheKey);
@@ -138,6 +139,18 @@ app.post('/api/gemini/:model/:action', async (req, res) => {
 // Simple health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Custom 404 for JSON
+app.use((req, res) => {
+  console.log(`[404 Not Found] ${req.method} ${req.url}`);
+  res.status(404).json({ error: `Path Not Found: ${req.url}`, method: req.method });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("[Fatal Backend Error]", err);
+  res.status(500).json({ error: "Interal Server Error", message: err.message });
 });
 
 app.listen(port, () => {
